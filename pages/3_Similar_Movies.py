@@ -1,4 +1,14 @@
 import streamlit as st
+st.markdown("""
+<style>
+    /* Clean movie card styling on results */
+    div[data-testid="stVerticalBlock"] > div[style*="border"] {
+        border-radius: 12px !important;
+        background: rgba(36, 46, 70, 0.7) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 import common
 import tmdb_client as tmdb
 from recommender import rank_similar

@@ -1,8 +1,11 @@
 """
-common.py  --  things every page shares: the logo, the look, and how a movie card is drawn.
+common.py  --  SECTION 4a: SHARED USER INTERFACE COMPONENTS
+Every page calls header() and show_card(), which guarantees consistent styling, the CineMatch
+wordmark (branding) on every page, and identical, readable movie results everywhere.
 """
 import streamlit as st
 
+# Simple custom styling: a bold wordmark with a red accent, and rounded "pills" for movie facts.
 CSS = """
 <style>
 .wordmark {font-size: 2.2rem; font-weight: 800; letter-spacing: 2px; margin-bottom: 0;}
@@ -15,11 +18,13 @@ CSS = """
 
 
 def header():
-    """Call this at the very top of every page."""
+    """Call this at the very top of every page.
+    set_page_config must be the first Streamlit command on a page, so it lives here."""
     st.set_page_config(page_title="CineMatch", page_icon="🎬", layout="wide")
     st.markdown(CSS, unsafe_allow_html=True)
     st.markdown('<p class="wordmark">🎬 CINE<span>MATCH</span></p>', unsafe_allow_html=True)
     st.markdown('<p class="tagline">Find your next movie by genre, mood and taste.</p>', unsafe_allow_html=True)
+    # TMDB's terms require this attribution wherever its data is shown.
     st.sidebar.caption("This product uses the TMDB API but is not endorsed or certified by TMDB.")
 
 

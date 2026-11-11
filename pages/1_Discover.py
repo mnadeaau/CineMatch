@@ -1,16 +1,12 @@
+"""
+1_Discover.py  --  SECTION 4c: USER INTERFACE, FILTER PAGE
+Covers every required filter: temporal (years), quality (rating, votes), content (runtime,
+certification, language), personnel (director, actor) and genres with AND / OR / NOT logic.
+Filters are combined into one dictionary of TMDB parameters and sent in a single request.
+"""
 from datetime import date
 
 import streamlit as st
-st.markdown("""
-<style>
-    /* Clean movie card styling on results */
-    div[data-testid="stVerticalBlock"] > div[style*="border"] {
-        border-radius: 12px !important;
-        background: rgba(36, 46, 70, 0.7) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    }
-</style>
-""", unsafe_allow_html=True)
 import common
 import tmdb_client as tmdb
 
@@ -18,7 +14,8 @@ common.header()
 st.header("Discover")
 
 
-@st.cache_data(ttl=86400)           # remember the genre list for a day
+# Genre names and IDs rarely change, so the list is cached for a day (86400 seconds).
+@st.cache_data(ttl=86400)
 def get_genres():
     return tmdb.genre_map()
 
@@ -32,7 +29,8 @@ try:
     genres = get_genres()
     name_to_id = {name: gid for gid, name in genres.items()}
 
-    # A form means nothing runs until the user presses the button
+    # DECISION: a form means the page only searches when the user presses the button, instead of
+    # re-running (and re-calling the API) every time a slider moves. Faster and kinder to rate limits.
     with st.form("filters"):
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -56,6 +54,7 @@ try:
         submitted = st.form_submit_button("🔍 Find movies", type="primary")
 
     if submitted:
+        # EDGE CASE: the same genre cannot be both included and excluded.
         if set(include) & set(exclude):
             st.error("A genre can't be both included and excluded. Please fix one of them.")
         else:
@@ -72,12 +71,15 @@ try:
             if LANGUAGES[language]:
                 f["with_original_language"] = LANGUAGES[language]
             if include:
+                # LOGICAL OPERATORS: in TMDB a comma means AND (movie must have ALL genres) and a
+                # vertical bar means OR (movie may have ANY of them). Exclusion (NOT) is separate below.
                 joiner = "," if mode.startswith("ALL") else "|"
                 f["with_genres"] = joiner.join(str(name_to_id[g]) for g in include)
             if exclude:
                 f["without_genres"] = ",".join(str(name_to_id[g]) for g in exclude)
 
-            # People: look up their ID first (and warn if we can't find them)
+            # PERSONNEL FILTER: TMDB needs a person ID, so look it up first. EDGE CASE: if the name
+            # is misspelled, warn the user instead of silently ignoring it.
             for label, name, is_director, key in [("director", director, True, "with_crew"),
                                                   ("actor", actor, False, "with_cast")]:
                 if name.strip():
@@ -92,6 +94,7 @@ try:
                 results, total = tmdb.discover(f)
                 movies = tmdb.get_movies([m["id"] for m in results])
 
+            # EDGE CASE: no results. Tell the user how to fix it instead of showing a blank page.
             if not movies:
                 st.warning("No movies matched all of those filters. Try loosening one "
                            "(for example, lower the minimum rating or votes).")
@@ -99,5 +102,6 @@ try:
                 st.success(f"{total:,} movies match. Showing the first {len(movies)}.")
                 for m in movies:
                     common.show_card(m)
+# Any API problem (bad key, TMDB down, no internet) shows a friendly message instead of a crash.
 except tmdb.TMDBError as e:
     st.error(f"⚠️ {e}")

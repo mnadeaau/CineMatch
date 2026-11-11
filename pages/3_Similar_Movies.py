@@ -1,3 +1,8 @@
+"""
+3_Similar_Movies.py  --  SECTION 4e: SIMILAR MOVIE DISCOVERY WITH EXPLANATIONS (enhanced feature)
+Flow: user types a title -> confirm the exact movie -> fetch TMDB's related movies as candidates
+-> rank them with the hybrid recommender -> show each with a "Why this?" explanation.
+"""
 import streamlit as st
 import common
 import tmdb_client as tmdb
@@ -14,9 +19,11 @@ try:
         if not hits:
             st.warning("I couldn't find a movie with that title. Check the spelling.")
         else:
+            # Many titles share names (remakes, sequels), so the user confirms the exact movie.
             choice = st.selectbox("Did you mean…", hits,
                                   format_func=lambda h: f"{h['title']} ({h['year']})")
             st.caption("How much should each ingredient matter?")
+            # The three sliders are the weights of the hybrid score, so users control the recommender.
             c1, c2, c3 = st.columns(3)
             w_content = c1.slider("Story, genre, cast", 0.0, 1.0, 0.6)
             w_mood = c2.slider("Similar mood", 0.0, 1.0, 0.2)
@@ -28,6 +35,7 @@ try:
                 else:
                     with st.spinner("Reading plots and comparing movies…"):
                         seed = tmdb.get_movie(choice["id"])
+                        # Candidate pool: up to 30 related movies (kept small so the page loads quickly).
                         pool = tmdb.get_movies(tmdb.related_ids(choice["id"])[:30])
                         ranked = rank_similar(seed, pool, w_content, w_mood, w_quality)
                     if not ranked:

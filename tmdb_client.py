@@ -1,5 +1,14 @@
 """
-tmdb_client.py  --  everything that talks to TMDB (the "data" file).
+tmdb_client.py  --  SECTION 1: API INTERACTION, DATA RETRIEVAL AND DATA PROCESSING
+All communication with the TMDB API lives in this one file, so the rest of the app never
+needs to know how the API works. If TMDB ever changes, only this file needs fixing.
+
+Key decisions:
+  * Caching (lru_cache): the same request is only sent once. This avoids TMDB rate limits
+    and makes repeat searches instant.
+  * Parallel fetching (ThreadPoolExecutor): details for ~20 movies load at the same time
+    instead of one by one.
+  * Friendly errors (TMDBError): any API problem becomes a plain-English message for the user.
 """
 import os
 import time
@@ -18,7 +27,8 @@ class TMDBError(Exception):
 
 
 def _key():
-    # On Streamlit Cloud the key lives in "Secrets". Locally, it can be an environment variable.
+    # SECURITY: the API key is never written in the code. On Streamlit Cloud it is stored in
+    # "Secrets"; locally it can be an environment variable. This keeps the key out of GitHub.
     try:
         return st.secrets["TMDB_API_KEY"]
     except Exception:
@@ -33,6 +43,7 @@ def _get(path, params=()):
     query = dict(params)
     query["api_key"] = key
     last_error = None
+    # RELIABILITY: retry up to 3 times so a brief network hiccup does not crash the app
     for attempt in range(3):               # try up to 3 times if TMDB is busy
         try:
             r = requests.get(f"{BASE}{path}", params=query, timeout=10)
@@ -49,6 +60,8 @@ def _get(path, params=()):
     raise TMDBError(f"Could not reach TMDB right now ({last_error}). Please try again.")
 
 
+# Helper: converts a normal dictionary of parameters into a sorted tuple. Dictionaries cannot be
+# cached, but tuples can, so this is what makes the caching above work.
 def _call(path, **params):
     # Turns {"a": 1} into a hashable form so the cache can remember it
     return _get(path, tuple(sorted((k, str(v)) for k, v in params.items())))
@@ -59,6 +72,8 @@ def genre_map():
     return {g["id"]: g["name"] for g in _call("/genre/movie/list", language="en-US")["genres"]}
 
 
+# Personnel filter support: TMDB filters by person ID, not name, so we look the ID up first.
+# For directors we prefer people TMDB lists as "Directing" to avoid matching an actor with the same name.
 def search_person(name, directing=False):
     """Find a person's ID. Returns (id, name) or None if nobody matches."""
     results = _call("/search/person", query=name).get("results", [])
@@ -77,6 +92,8 @@ def trending(window="week"):
     return [m["id"] for m in _call(f"/trending/movie/{window}").get("results", [])]
 
 
+# Candidate pool for recommendations: instead of ranking every movie on TMDB (impossible),
+# we only rank movies TMDB already considers related. This keeps results relevant and fast.
 def related_ids(movie_id):
     """Movies TMDB itself thinks are related. We use these as candidates to rank."""
     ids = []
@@ -87,6 +104,8 @@ def related_ids(movie_id):
 
 def discover(filters, pages=1):
     """Filtered search. `filters` uses TMDB's own parameter names (same as in Colab)."""
+    # Defaults: hide adult titles, and require at least 100 votes so obscure movies with a
+    # handful of ratings do not dominate the results. Any filter passed in overrides these.
     params = {"include_adult": "false", "language": "en-US",
               "sort_by": "popularity.desc", "vote_count.gte": 100}
     params.update(filters)
@@ -98,8 +117,12 @@ def discover(filters, pages=1):
     return movies, total
 
 
+# DATA PROCESSING: TMDB returns a large, deeply nested reply. This function flattens it into one
+# tidy dictionary per movie containing only the fields the app uses (basic info, content details,
+# performance metrics). Missing values are replaced with safe defaults so the app never crashes.
 def _clean(d):
     """Turn TMDB's big messy reply into one tidy dictionary (your clean_movie from Step 3)."""
+    # Certification (age rating) is stored per country. We use the US rating; "NR" = not rated.
     cert = "NR"
     for country in d.get("release_dates", {}).get("results", []):
         if country["iso_3166_1"] == "US":
@@ -129,6 +152,8 @@ def _clean(d):
     }
 
 
+# One request returns everything: append_to_response bundles cast/crew, keywords and release
+# dates into the same reply, instead of making three separate requests per movie.
 def get_movie(movie_id):
     return _clean(_call(f"/movie/{movie_id}", language="en-US",
                         append_to_response="credits,keywords,release_dates"))

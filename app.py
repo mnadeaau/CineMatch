@@ -1,3 +1,9 @@
+"""
+app.py  --  SECTION 4b: USER INTERFACE, HOME PAGE
+Streamlit automatically adds every file in the pages/ folder to the left-hand menu, which gives
+the app its navigation structure: Home, Discover, Smart Search, Similar Movies, Trending.
+"""
+
 import streamlit as st
 
 # 1. Page Configuration

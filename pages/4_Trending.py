@@ -1,3 +1,7 @@
+"""
+4_Trending.py  --  SECTION 4f: TRENDING CONTENT INTEGRATION (enhanced feature)
+Shows what is popular today or this week using TMDB's trending endpoint.
+"""
 import streamlit as st
 import common
 import tmdb_client as tmdb

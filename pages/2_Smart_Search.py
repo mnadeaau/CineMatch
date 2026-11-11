@@ -1,3 +1,8 @@
+"""
+2_Smart_Search.py  --  SECTION 4d: NATURAL LANGUAGE QUERY INTERFACE (enhanced feature)
+The user types a sentence; parse_query() (nlp_utils.py) converts it into filters.
+The page repeats back what it understood so the user can spot and correct mistakes.
+"""
 import streamlit as st
 import common
 import tmdb_client as tmdb
@@ -15,11 +20,14 @@ if st.button("Search", type="primary"):
         st.warning("Please type something first.")
     else:
         filters, understood = parse_query(query)
+        # EDGE CASE: nothing recognised (e.g. "asdfgh"). Give hints rather than showing random movies.
         if not understood:
             st.warning("I couldn't find any filters in that. Try mentioning a genre, a decade, "
                        "a length (like 'under 2 hours') or a rating (like 'rated 7').")
         else:
             st.markdown("**I understood:** " + " · ".join(understood))
+            # Plain-English searches default to movies with 300+ votes so results are well-known titles.
+            # setdefault only applies this if the user did not already specify something else.
             filters.setdefault("vote_count.gte", 300)
             try:
                 with st.spinner("Searching…"):
